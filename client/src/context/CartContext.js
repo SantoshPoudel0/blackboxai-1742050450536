@@ -14,8 +14,8 @@ export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load cart from localStorage on mount
   useEffect(() => {
+    // Load cart from localStorage on mount
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       setItems(JSON.parse(savedCart));
@@ -30,37 +30,32 @@ export function CartProvider({ children }) {
 
   const addItem = (product, quantity = 1) => {
     setItems(currentItems => {
-      const existingItem = currentItems.find(item => item._id === product._id);
+      const existingItem = currentItems.find(item => item.id === product.id);
       
       if (existingItem) {
-        // Update quantity if item exists
         return currentItems.map(item =>
-          item._id === product._id
+          item.id === product.id
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
       }
       
-      // Add new item if it doesn't exist
       return [...currentItems, { ...product, quantity }];
     });
   };
 
   const removeItem = (productId) => {
-    setItems(currentItems => 
-      currentItems.filter(item => item._id !== productId)
+    setItems(currentItems =>
+      currentItems.filter(item => item.id !== productId)
     );
   };
 
   const updateQuantity = (productId, quantity) => {
-    if (quantity < 1) {
-      removeItem(productId);
-      return;
-    }
+    if (quantity < 1) return;
 
     setItems(currentItems =>
       currentItems.map(item =>
-        item._id === productId
+        item.id === productId
           ? { ...item, quantity }
           : item
       )
@@ -79,22 +74,6 @@ export function CartProvider({ children }) {
     return items.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
-  const getTax = () => {
-    return getSubtotal() * 0.1; // 10% tax
-  };
-
-  const getTotal = () => {
-    return getSubtotal() + getTax();
-  };
-
-  const isInCart = (productId) => {
-    return items.some(item => item._id === productId);
-  };
-
-  const getItem = (productId) => {
-    return items.find(item => item._id === productId);
-  };
-
   const value = {
     items,
     loading,
@@ -103,11 +82,7 @@ export function CartProvider({ children }) {
     updateQuantity,
     clearCart,
     getItemCount,
-    getSubtotal,
-    getTax,
-    getTotal,
-    isInCart,
-    getItem
+    getSubtotal
   };
 
   if (loading) {
@@ -124,21 +99,5 @@ export function CartProvider({ children }) {
     </CartContext.Provider>
   );
 }
-
-// Custom hook for cart calculations
-export const useCartCalculations = () => {
-  const { items } = useCart();
-
-  const calculations = {
-    subtotal: items.reduce((total, item) => total + (item.price * item.quantity), 0),
-    tax: items.reduce((total, item) => total + (item.price * item.quantity), 0) * 0.1,
-    shipping: 0, // Can be modified based on shipping options
-    get total() {
-      return this.subtotal + this.tax + this.shipping;
-    }
-  };
-
-  return calculations;
-};
 
 export default CartContext;
