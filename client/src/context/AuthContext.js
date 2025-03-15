@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI } from '../services/api';
+import axios from 'axios';
 
 const AuthContext = createContext(null);
 
@@ -14,22 +14,34 @@ export const useAuth = () => {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
-    checkAuthStatus();
+    // Check if user is logged in on mount
+    const token = localStorage.getItem('token');
+    if (token) {
+      checkAuthStatus();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const checkAuthStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (token) {
-        const userData = await authAPI.checkAuth();
-        setUser(userData);
+      if (!token) {
+        setUser(null);
+        return;
       }
-    } catch (err) {
-      console.error('Auth check failed:', err);
+
+      const response = await axios.get('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setUser(response.data);
+    } catch (error) {
+      console.error('Auth status check failed:', error);
       localStorage.removeItem('token');
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -37,54 +49,61 @@ export function AuthProvider({ children }) {
 
   const login = async (credentials) => {
     try {
-      setError(null);
-      const response = await authAPI.login(credentials);
-      setUser(response.user);
-      return response;
-    } catch (err) {
-      setError(err.message || 'Failed to login');
-      throw err;
+      const response = await axios.post('/api/auth/login', credentials);
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      setUser(user);
+      
+      // Set default authorization header for all future requests
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      return user;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Login failed');
     }
   };
 
   const register = async (userData) => {
     try {
-      setError(null);
-      const response = await authAPI.register(userData);
-      return response;
-    } catch (err) {
-      setError(err.message || 'Failed to register');
-      throw err;
+      const response = await axios.post('/api/auth/register', userData);
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      setUser(user);
+      
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      return user;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Registration failed');
     }
   };
 
   const logout = () => {
-    authAPI.logout();
+    localStorage.removeItem('token');
+    delete axios.defaults.headers.common['Authorization'];
     setUser(null);
   };
 
   const updateProfile = async (userData) => {
     try {
-      setError(null);
-      const response = await authAPI.updateProfile(userData);
-      setUser(response);
-      return response;
-    } catch (err) {
-      setError(err.message || 'Failed to update profile');
-      throw err;
+      const response = await axios.put('/api/auth/profile', userData);
+      setUser(response.data);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Profile update failed');
     }
   };
 
   const value = {
     user,
     loading,
-    error,
+    isAuthenticated: !!user,
     login,
     register,
     logout,
-    updateProfile,
-    isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin'
+    updateProfile
   };
 
   if (loading) {
